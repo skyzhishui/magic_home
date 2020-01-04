@@ -1,0 +1,1 @@
+"""MagicHome for home-assistant by @skyzhishui."""
