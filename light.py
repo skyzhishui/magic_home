@@ -43,7 +43,7 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
 )
 
 def setup_platform(hass, config, add_entities, discovery_info=None):
-    """Find and return MagicHomeLight."""
+    """Setup MagicHomeLight."""
     ip = config.get(CONF_LIGHT_IP)
     dev_type = config.get(CONF_LIGHT_TYPE)
     lights = []
@@ -71,9 +71,6 @@ class MagicHomeLight(Light):
             self._brightness = max_color
             hs_rgb = (rgb[0] * 255 / max_color,rgb[2] * 255 / max_color,rgb[1] * 255 / max_color)
             self._hs = color_util.color_RGB_to_hs(*hs_rgb)
-            _LOGGER.info("init_magic_home_hs_rgb: %s",str(self._hs))
-            _LOGGER.info("init_magic_home_brightness: %s",str(self._brightness))
-            _LOGGER.info("init_magic_home_stat[2]: %s",str(stat[2]))
             self._available = True
             self._white_value = stat[5]
             if stat[2] == 0x23:
@@ -84,9 +81,6 @@ class MagicHomeLight(Light):
                 self._effect = "0"
             else:
                 self._effect = str(stat[3] * 256 + stat[4] - 99)
-                _LOGGER.info("init_magic_home_stat[3]: %s",str(stat[3]))
-                _LOGGER.info("init_magic_home_stat[4]: %s",str(stat[4]))
-                _LOGGER.info("init_magic_home_effect: %s",str(self._effect))
         else:
             self._hs = None
             self._ison = False
@@ -173,22 +167,6 @@ class MagicHomeLight(Light):
         stat = self.ctrl.get_status()
         if len(stat) != 14:
             return
-        rx = stat
-        _LOGGER.info(rx)
-        _LOGGER.info("0:"+str(hex(rx[0])))
-        _LOGGER.info("1:"+str(hex(rx[1])))
-        _LOGGER.info("2:"+str(hex(rx[2])))
-        _LOGGER.info("3:"+str(hex(rx[3])))
-        _LOGGER.info("4:"+str(hex(rx[4])))
-        _LOGGER.info("5:"+str(hex(rx[5])))
-        _LOGGER.info("6:"+str(hex(rx[6])))
-        _LOGGER.info("7:"+str(hex(rx[7])))
-        _LOGGER.info("8:"+str(hex(rx[8])))
-        _LOGGER.info("9:"+str(hex(rx[9])))
-        _LOGGER.info("10:"+str(hex(rx[10])))
-        _LOGGER.info("11:"+str(hex(rx[11])))
-        _LOGGER.info("12:"+str(hex(rx[12])))
-        _LOGGER.info("13:"+str(hex(rx[13])))
         if stat[1] == 161:
             self._state = stat
             rgb = (self._state[6],self._state[7],self._state[8])
@@ -196,9 +174,6 @@ class MagicHomeLight(Light):
             self._brightness = max_color
             hs_rgb = (rgb[0] * 255 / max_color,rgb[2] * 255 / max_color,rgb[1] * 255 / max_color)
             self._hs = color_util.color_RGB_to_hs(*hs_rgb)
-            _LOGGER.info("update_magic_home_hs_rgb: %s",str(self._hs))
-            _LOGGER.info("update_magic_home_brightness: %s",str(self._brightness))
-            _LOGGER.info("update_magic_home_stat[2]: %s",str(stat[2]))
             self._available = True
             self._white_value = stat[5]
             if stat[2] == 0x23:
@@ -209,9 +184,6 @@ class MagicHomeLight(Light):
                 self._effect = "0"
             else:
                 self._effect = str(stat[3] * 256 + stat[4] - 99)
-                _LOGGER.info("update_magic_home_stat[3]: %s",str(stat[3]))
-                _LOGGER.info("update_magic_home_stat[4]: %s",str(stat[4]))
-                _LOGGER.info("update_magic_home_effect: %s",str(self._effect))
 
 """
 reference from https://github.com/adamkempenich/magichome-python
