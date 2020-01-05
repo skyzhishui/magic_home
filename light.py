@@ -150,9 +150,10 @@ class MagicHomeLight(Light):
             _LOGGER.info("set_magic_home_rgb: %s",str(mh_rgb))
             self.ctrl.update_device(int(mh_rgb[0]),int(mh_rgb[1]),int(mh_rgb[2]))
         else:
-            if self._white_value > 100:
-                self._white_value = 100
-            self.ctrl.send_preset_function(int(self._effect),self._white_value)
+            if self._ison:
+                if self._white_value > 100:
+                    self._white_value = 100
+                self.ctrl.send_preset_function(int(self._effect),self._white_value)
         self.ctrl.turn_on()
         self._ison = True
         self.schedule_update_ha_state()
