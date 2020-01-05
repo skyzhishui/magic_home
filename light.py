@@ -169,11 +169,6 @@ class MagicHomeLight(Light):
             return
         if stat[1] == 161:
             self._state = stat
-            rgb = (self._state[6],self._state[7],self._state[8])
-            max_color = max(rgb)
-            self._brightness = max_color
-            hs_rgb = (rgb[0] * 255 / max_color,rgb[2] * 255 / max_color,rgb[1] * 255 / max_color)
-            self._hs = color_util.color_RGB_to_hs(*hs_rgb)
             self._available = True
             self._white_value = stat[5]
             if stat[2] == 0x23:
@@ -182,6 +177,11 @@ class MagicHomeLight(Light):
                 self._ison = False
             if stat[3] == 0 and stat[4] == 0x61:
                 self._effect = "0"
+                rgb = (self._state[6],self._state[7],self._state[8])
+                max_color = max(rgb)
+                self._brightness = max_color
+                hs_rgb = (rgb[0] * 255 / max_color,rgb[2] * 255 / max_color,rgb[1] * 255 / max_color)
+                self._hs = color_util.color_RGB_to_hs(*hs_rgb)
             else:
                 self._effect = str(stat[3] * 256 + stat[4] - 99)
 
