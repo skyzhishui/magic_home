@@ -43,7 +43,7 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
 )
 
 def setup_platform(hass, config, add_entities, discovery_info=None):
-    """Setup MagicHomeLight."""
+    """Find and return MagicHomeLight."""
     ip = config.get(CONF_LIGHT_IP)
     dev_type = config.get(CONF_LIGHT_TYPE)
     lights = []
@@ -71,6 +71,9 @@ class MagicHomeLight(Light):
             self._brightness = max_color
             hs_rgb = (rgb[0] * 255 / max_color,rgb[2] * 255 / max_color,rgb[1] * 255 / max_color)
             self._hs = color_util.color_RGB_to_hs(*hs_rgb)
+            _LOGGER.info("init_magic_home_hs_rgb: %s",str(self._hs))
+            _LOGGER.info("init_magic_home_brightness: %s",str(self._brightness))
+            _LOGGER.info("init_magic_home_stat[2]: %s",str(stat[2]))
             self._available = True
             self._white_value = stat[5]
             if stat[2] == 0x23:
@@ -81,6 +84,9 @@ class MagicHomeLight(Light):
                 self._effect = "0"
             else:
                 self._effect = str(stat[3] * 256 + stat[4] - 99)
+                _LOGGER.info("init_magic_home_stat[3]: %s",str(stat[3]))
+                _LOGGER.info("init_magic_home_stat[4]: %s",str(stat[4]))
+                _LOGGER.info("init_magic_home_effect: %s",str(self._effect))
         else:
             self._hs = None
             self._ison = False
@@ -142,30 +148,38 @@ class MagicHomeLight(Light):
             self._brightness = kwargs[ATTR_BRIGHTNESS]
         if ATTR_WHITE_VALUE in kwargs:
             self._white_value = kwargs[ATTR_WHITE_VALUE]
+        _LOGGER.info("set_magic_home:ATTR_HS_COLOR=%s, ATTR_EFFECT=%s, ATTR_BRIGHTNESS=%s, ATTR_WHITE_VALUE=%s " % (self._hs,self._effect,self._brightness,self._white_value))
         if self._effect == "0":
-            _LOGGER.info("set_magic_home_brightness: %s",str(self._brightness))
+            #_LOGGER.info("set_magic_home_brightness: %s",str(self._brightness))
             rgb = color_util.color_hs_to_RGB(*self._hs)
-            _LOGGER.info("set_magic_home_rgb: %s",str(rgb))
+            #_LOGGER.info("set_magic_home_rgb: %s",str(rgb))
             mh_rgb = (rgb[0] * self._brightness / 255,rgb[2] * self._brightness / 255,rgb[1] * self._brightness / 255)
-            _LOGGER.info("set_magic_home_rgb: %s",str(mh_rgb))
-            self.ctrl.update_device(int(mh_rgb[0]),int(mh_rgb[1]),int(mh_rgb[2]))
+            #_LOGGER.info("set_magic_home_rgb: %s",str(mh_rgb))
+            if self.ctrl.update_device(int(mh_rgb[0]),int(mh_rgb[1]),int(mh_rgb[2])) == -1:
+                return
         else:
             if self._ison:
                 if self._white_value > 100:
                     self._white_value = 100
-                self.ctrl.send_preset_function(int(self._effect),self._white_value)
-        self.ctrl.turn_on()
+                if self.ctrl.send_preset_function(int(self._effect),self._white_value) == -1:
+                    return
+        if self.ctrl.turn_on() == -1:
+            return
         self._ison = True
         self.schedule_update_ha_state()
 
     def turn_off(self, **kwargs):
-        self.ctrl.turn_off()
+        if self.ctrl.turn_off() == -1:
+            return
         self._ison = False
         self.schedule_update_ha_state()
 
     def update(self):
         """Fetch state from the device."""
         stat = self.ctrl.get_status()
+        if stat == -1:
+            self._available = False
+            return
         if len(stat) != 14:
             return
         if stat[1] == 161:
@@ -214,31 +228,35 @@ class MagicHomeApi:
     def turn_on(self):
         """Turn a device on."""
         if not self.socket_connect():
-            return
+            return -1
         self.send_bytes(0x71, 0x23, 0x0F, 0xA3) if self.device_type != 4 else self.send_bytes(0xCC, 0x23, 0x33)
         self.s.shutdown(2)
         self.s.close()
+        return 0
 
     def turn_off(self):
         """Turn a device off."""
         if not self.socket_connect():
-            return
+            return -1
         self.send_bytes(0x71, 0x24, 0x0F, 0xA4) if self.device_type != 4 else self.send_bytes(0xCC, 0x24, 0x33)
         self.s.shutdown(2)
         self.s.close()
+        return 0
 
     def get_status(self):
         """Get the current status of a device."""
         if not self.socket_connect():
-            return
+            return -1
+        resv = []
         if self.device_type == 2:
             self.send_bytes(0x81, 0x8A, 0x8B, 0x96)
-            return self.s.recv(15)
+            resv = self.s.recv(15)
         else:
             self.send_bytes(0x81, 0x8A, 0x8B, 0x96)
-            return self.s.recv(14)
+            resv = self.s.recv(14)
         self.s.shutdown(2)
         self.s.close()
+        return resv
 
     def update_device(self, r=0, g=0, b=0, white1=None, white2=None):
         """Updates a device based upon what we're sending to it.
@@ -247,7 +265,7 @@ class MagicHomeApi:
         Whites can have a value of None.
         """
         if not self.socket_connect():
-            return
+            return -1
         if self.device_type <= 1:
             # Update an RGB or an RGB + WW device
             white1 = self.check_number_range(white1)
@@ -316,6 +334,7 @@ class MagicHomeApi:
             _LOGGER.info("Incompatible device type received...")
         self.s.shutdown(2)
         self.s.close()
+        return 0
 
     def check_number_range(self, number):
         """Check if the given number is in the allowed range."""
