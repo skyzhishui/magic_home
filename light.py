@@ -34,6 +34,28 @@ CONF_LIGHT_TYPE = "dev_type"
 
 ENTITYID = 'entity_id'
 DOMAIN = 'light'
+DEV_PROTOCOL_TYPE5 = [0xa1]
+DEV_PROTOCOL_OTHER = [0x01,0x04,0x25,0x27,0x33,0x35,0x81]
+PATTERN_DICT = {"seven_color_cross_fade":0x25,
+"red_gradual_change":0x26,
+"green_gradual_change":0x27,
+"blue_gradual_change":0x28,
+"yellow_gradual_change":0x29,
+"cyan_gradual_change":0x2a,
+"purple_gradual_change":0x2b,
+"white_gradual_change":0x2c,
+"red_green_cross_fade":0x2d,
+"red_blue_cross_fade":0x2e,
+"green_blue_cross_fade":0x2f,
+"seven_color_strobe_flash":0x30,
+"red_strobe_flash":0x31,
+"green_strobe_flash":0x32,
+"blue_strobe_flash":0x33,
+"yellow_strobe_flash":0x34,
+"cyan_strobe_flash":0x35,
+"purple_strobe_flash":0x36,
+"white_strobe_flash":0x37,
+"seven_color_jumping":0x38}
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
     {
@@ -59,21 +81,21 @@ class MagicHomeLight(Light):
     def __init__(self, ip, dev_type):
         """Initialize the MagicHomeLight."""
         self.ctrl = MagicHomeApi(ip, dev_type)
+        self._dev_type = dev_type
         self._tick = 0
         self.entity_id = ENTITY_ID_FORMAT.format(("magichome_" + ip.replace(".","_")).lower())
         self._transition = 1
         stat = self.ctrl.get_status()
-        if stat[1] == 161:
+        if self.check_recv(stat[0],stat[1]):
             self._state = stat
             rgb = (self._state[6],self._state[7],self._state[8])
             _LOGGER.info("magic_home_rgb: %s",str(rgb))
             max_color = max(rgb)
             self._brightness = max_color
-            hs_rgb = (rgb[0] * 255 / max_color,rgb[2] * 255 / max_color,rgb[1] * 255 / max_color)
+            hs_rgb = rgb
+            if max_color != 0:
+                hs_rgb = (rgb[0] * 255 / max_color,rgb[2] * 255 / max_color,rgb[1] * 255 / max_color)
             self._hs = color_util.color_RGB_to_hs(*hs_rgb)
-            _LOGGER.info("init_magic_home_hs_rgb: %s",str(self._hs))
-            _LOGGER.info("init_magic_home_brightness: %s",str(self._brightness))
-            _LOGGER.info("init_magic_home_stat[2]: %s",str(stat[2]))
             self._available = True
             self._white_value = stat[5]
             if stat[2] == 0x23:
@@ -83,18 +105,22 @@ class MagicHomeLight(Light):
             if stat[3] == 0 and stat[4] == 0x61:
                 self._effect = "0"
             else:
-                self._effect = str(stat[3] * 256 + stat[4] - 99)
-                _LOGGER.info("init_magic_home_stat[3]: %s",str(stat[3]))
-                _LOGGER.info("init_magic_home_stat[4]: %s",str(stat[4]))
-                _LOGGER.info("init_magic_home_effect: %s",str(self._effect))
+                if self._dev_type == 5:
+                    self._effect = str(stat[3] * 256 + stat[4] - 99)
+                else:
+                    self._effect = list(PATTERN_DICT.keys())[list(PATTERN_DICT.values()).index(stat[4])]
         else:
             self._hs = None
             self._ison = False
             self._effect = None
             self._brightness = None
         eff_list = []
-        for i in range(300):
-            eff_list.append(str(i))
+        if self._dev_type == 5:
+            for i in range(301):
+                eff_list.append(str(i))
+        else:
+            for i in PATTERN_DICT:
+                eff_list.append(i)
         self._effect_list = eff_list
 
     @property
@@ -161,7 +187,12 @@ class MagicHomeLight(Light):
             if self._ison:
                 if self._white_value > 100:
                     self._white_value = 100
-                if self.ctrl.send_preset_function(int(self._effect),self._white_value) == -1:
+                effect_value = 0
+                if self._dev_type == 5:
+                    effect_value = int(self._effect) + 99
+                else:
+                    effect_value = PATTERN_DICT[self._effect]
+                if self.ctrl.send_preset_function(effect_value,self._white_value) == -1:
                     return
         if self.ctrl.turn_on() == -1:
             return
@@ -182,7 +213,7 @@ class MagicHomeLight(Light):
             return
         if len(stat) != 14:
             return
-        if stat[1] == 161:
+        if self.check_recv(stat[0],stat[1]):
             self._state = stat
             self._available = True
             self._white_value = stat[5]
@@ -195,11 +226,25 @@ class MagicHomeLight(Light):
                 rgb = (self._state[6],self._state[7],self._state[8])
                 max_color = max(rgb)
                 self._brightness = max_color
-                hs_rgb = (rgb[0] * 255 / max_color,rgb[2] * 255 / max_color,rgb[1] * 255 / max_color)
+                self._brightness = max_color
+                hs_rgb = rgb
+                if max_color != 0:
+                    hs_rgb = (rgb[0] * 255 / max_color,rgb[2] * 255 / max_color,rgb[1] * 255 / max_color)
                 self._hs = color_util.color_RGB_to_hs(*hs_rgb)
             else:
-                self._effect = str(stat[3] * 256 + stat[4] - 99)
+                if self._dev_type == 5:
+                    self._effect = str(stat[3] * 256 + stat[4] - 99)
+                else:
+                    self._effect = list(PATTERN_DICT.keys())[list(PATTERN_DICT.values()).index(stat[4])]
 
+    def check_recv(self,head,type):
+        """check recv_packet from the device."""
+        if head == 0x81:
+            if self._dev_type == 5 and type in DEV_PROTOCOL_TYPE5:
+                return True
+            elif type in DEV_PROTOCOL_OTHER:
+                return True
+        return False
 """
 reference from https://github.com/adamkempenich/magichome-python
 
@@ -230,7 +275,6 @@ class MagicHomeApi:
         if not self.socket_connect():
             return -1
         self.send_bytes(0x71, 0x23, 0x0F, 0xA3) if self.device_type != 4 else self.send_bytes(0xCC, 0x23, 0x33)
-        self.s.shutdown(2)
         self.s.close()
         return 0
 
@@ -239,7 +283,6 @@ class MagicHomeApi:
         if not self.socket_connect():
             return -1
         self.send_bytes(0x71, 0x24, 0x0F, 0xA4) if self.device_type != 4 else self.send_bytes(0xCC, 0x24, 0x33)
-        self.s.shutdown(2)
         self.s.close()
         return 0
 
@@ -254,7 +297,6 @@ class MagicHomeApi:
         else:
             self.send_bytes(0x81, 0x8A, 0x8B, 0x96)
             resv = self.s.recv(14)
-        self.s.shutdown(2)
         self.s.close()
         return resv
 
@@ -332,7 +374,6 @@ class MagicHomeApi:
         else:
             # Incompatible device received
             _LOGGER.info("Incompatible device type received...")
-        self.s.shutdown(2)
         self.s.close()
         return 0
 
@@ -358,23 +399,19 @@ class MagicHomeApi:
         """Send a preset command to a device."""
         if not self.socket_connect():
             return
-        preset_number = preset_number + 99
         p1 = preset_number & 0xff
         p2 = preset_number >> 8 & 0xff
         if speed < 0:
             speed = 0
         if speed > 100:
             speed = 100
-        if type == 4:
-            self.send_bytes(0xBB, preset_number, speed, 0x44)
+        if self.device_type == 5:
+            message = [0x61, p2, p1, speed, 0x0F]
+            self.send_bytes(*(message+[self.calculate_checksum(message)]))
         else:
-            if self.device_type == 5:
-                message = [0x61, p2, p1, speed, 0x0F]
-                self.send_bytes(*(message+[self.calculate_checksum(message)]))
-            else:
-                message = [0x61, preset_number, speed, 0x0F]
-                self.send_bytes(*(message+[self.calculate_checksum(message)]))
-        self.s.shutdown(2)
+            message = [0x61, preset_number, speed, 0x0F]
+            self.send_bytes(*(message+[self.calculate_checksum(message)]))
+
         self.s.close()
 
     def calculate_checksum(self, bytes):
