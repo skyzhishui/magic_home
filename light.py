@@ -84,7 +84,7 @@ class MagicHomeLight(Light):
         self._dev_type = dev_type
         self._tick = 0
         self.entity_id = ENTITY_ID_FORMAT.format(("magichome_" + ip.replace(".","_")).lower())
-        self._transition = 1
+        self._ecount = 0
         stat = self.ctrl.get_status()
         if self.check_recv(stat[0],stat[1]):
             self._state = stat
@@ -97,7 +97,7 @@ class MagicHomeLight(Light):
                 hs_rgb = (rgb[0] * 255 / max_color,rgb[2] * 255 / max_color,rgb[1] * 255 / max_color)
             self._hs = color_util.color_RGB_to_hs(*hs_rgb)
             self._available = True
-            self._white_value = stat[5]
+            self._white_value = stat[5] * 255 / 100
             if stat[2] == 0x23:
                 self._ison = True
             else:
@@ -185,14 +185,12 @@ class MagicHomeLight(Light):
                 return
         else:
             if self._ison:
-                if self._white_value > 100:
-                    self._white_value = 100
                 effect_value = 0
                 if self._dev_type == 5:
                     effect_value = int(self._effect) + 99
                 else:
                     effect_value = PATTERN_DICT[self._effect]
-                if self.ctrl.send_preset_function(effect_value,self._white_value) == -1:
+                if self.ctrl.send_preset_function(effect_value,int(self._white_value * 100 /255)) == -1:
                     return
         if self.ctrl.turn_on() == -1:
             return
@@ -209,14 +207,17 @@ class MagicHomeLight(Light):
         """Fetch state from the device."""
         stat = self.ctrl.get_status()
         if stat == -1:
-            self._available = False
+            self._ecount += 1
+            if self._ecount >= 3:
+                self._available = False
             return
         if len(stat) != 14:
             return
         if self.check_recv(stat[0],stat[1]):
             self._state = stat
             self._available = True
-            self._white_value = stat[5]
+            self._ecount = 0
+            self._white_value = stat[5] * 255 /100
             if stat[2] == 0x23:
                 self._ison = True
             else:
