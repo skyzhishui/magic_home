@@ -94,7 +94,7 @@ class MagicHomeLight(Light):
             self._brightness = max_color
             hs_rgb = rgb
             if max_color != 0:
-                hs_rgb = (rgb[0] * 255 / max_color,rgb[2] * 255 / max_color,rgb[1] * 255 / max_color)
+                hs_rgb = (rgb[0] * 255 / max_color,rgb[1] * 255 / max_color,rgb[2] * 255 / max_color)
             self._hs = color_util.color_RGB_to_hs(*hs_rgb)
             self._available = True
             self._white_value = stat[5] * 255 / 100
@@ -179,7 +179,7 @@ class MagicHomeLight(Light):
             #_LOGGER.info("set_magic_home_brightness: %s",str(self._brightness))
             rgb = color_util.color_hs_to_RGB(*self._hs)
             #_LOGGER.info("set_magic_home_rgb: %s",str(rgb))
-            mh_rgb = (rgb[0] * self._brightness / 255,rgb[2] * self._brightness / 255,rgb[1] * self._brightness / 255)
+            mh_rgb = (rgb[0] * self._brightness / 255,rgb[1] * self._brightness / 255,rgb[2] * self._brightness / 255)
             #_LOGGER.info("set_magic_home_rgb: %s",str(mh_rgb))
             if self.ctrl.update_device(int(mh_rgb[0]),int(mh_rgb[1]),int(mh_rgb[2])) == -1:
                 return
@@ -230,7 +230,7 @@ class MagicHomeLight(Light):
                 self._brightness = max_color
                 hs_rgb = rgb
                 if max_color != 0:
-                    hs_rgb = (rgb[0] * 255 / max_color,rgb[2] * 255 / max_color,rgb[1] * 255 / max_color)
+                    hs_rgb = (rgb[0] * 255 / max_color,rgb[1] * 255 / max_color,rgb[2] * 255 / max_color)
                 self._hs = color_util.color_RGB_to_hs(*hs_rgb)
             else:
                 if self._dev_type == 5:
